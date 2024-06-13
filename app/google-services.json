@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "871002392803",
+    "firebase_url": "https://prueba-android-2d2fc-default-rtdb.firebaseio.com",
+    "project_id": "prueba-android-2d2fc",
+    "storage_bucket": "prueba-android-2d2fc.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:871002392803:android:ebc53f70fb5a494c0b9dd6",
+        "android_client_info": {
+          "package_name": "com.miempresa.pruebaandroidfirebase"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEM_gHUVICqZXi0G3VcQVZjgoDJpQlVqg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:871002392803:android:dbbea8037b0194410b9dd6",
+        "android_client_info": {
+          "package_name": "com.miempresa.pulsecare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEM_gHUVICqZXi0G3VcQVZjgoDJpQlVqg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
