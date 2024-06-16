@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">PulseCare</string>
+    <string name="pills_text">Cant. medicamento: %1$d</string>
 </resources>

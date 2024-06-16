@@ -4,4 +4,7 @@
     <color name="white">#FFFFFFFF</color>
     <color name="principal">#263341</color>
     <color name="secundario">#EAEBE6</color>
+    <color name="red">#F44336</color>
+    <color name="colorStatusBar">#263341</color>
+    <color name="my_custom_color">#263341</color>
 </resources>

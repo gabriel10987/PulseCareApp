@@ -1,17 +1,18 @@
 package com.miempresa.pulsecare
 
+import android.content.Context
 import android.content.Intent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
-import androidx.appcompat.widget.SwitchCompat
 import androidx.recyclerview.widget.RecyclerView
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 class RemindersAdapter(
+    private val context: Context, // Añadir contexto aquí
     private val onDeleteClick: (Reminder) -> Unit
 ): RecyclerView.Adapter<RemindersAdapter.ReminderViewHolder>(){
 
@@ -23,7 +24,6 @@ class RemindersAdapter(
         val descriptionTextView: TextView = itemView.findViewById(R.id.reminderDescriptionTextView)
         val pillsTextView: TextView = itemView.findViewById(R.id.pillsTextView)
         val deleteReminderButton: ImageButton = itemView.findViewById(R.id.deleteReminderButton)
-        val toggleReminderSwitch: SwitchCompat = itemView.findViewById(R.id.toggleReminderSwitch)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ReminderViewHolder {
@@ -36,7 +36,7 @@ class RemindersAdapter(
         holder.medicineNameTextView.text = reminder.medicineName
         holder.reminderTimeTextView.text = formatTime(reminder.reminderTime)
         holder.descriptionTextView.text = reminder.description
-        holder.pillsTextView.text = reminder.pills.toString()
+        holder.pillsTextView.text = context.getString(R.string.pills_text, reminder.pills)
 
         holder.deleteReminderButton.setOnClickListener {
             onDeleteClick(reminder)
@@ -76,6 +76,6 @@ class RemindersAdapter(
 }
 
 fun formatTime(timeInMillis: Long): String {
-    val sdf = SimpleDateFormat("dd/MM/yyyy hh:mm a", Locale.getDefault())
+    val sdf = SimpleDateFormat("EEE, d 'de' MMM, h:mm a", Locale.getDefault())
     return sdf.format(timeInMillis)
 }

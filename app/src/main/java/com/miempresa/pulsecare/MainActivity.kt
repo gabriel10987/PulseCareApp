@@ -6,6 +6,7 @@ import android.util.Log
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -39,7 +40,7 @@ class MainActivity : AppCompatActivity() {
 
         // Configurar RecyclerView
         remindersRecyclerView.layoutManager = LinearLayoutManager(this)
-        remindersAdapter = RemindersAdapter { reminder -> deleteReminder(reminder) }
+        remindersAdapter = RemindersAdapter(this) { reminder -> deleteReminder(reminder) }
         remindersRecyclerView.adapter = remindersAdapter
 
         // Inicializar controlador
@@ -60,6 +61,8 @@ class MainActivity : AppCompatActivity() {
 
         // Escuchar cambios en el campo 'state' de 'closestReminders'
         listenForStateChanges()
+
+        window.statusBarColor = ContextCompat.getColor(this, R.color.colorStatusBar)
     }
 
 
@@ -80,7 +83,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateClosestReminder(remindersList: List<Reminder>) {
         if (remindersList.isNotEmpty()) {
             val closestReminder = remindersList.first()
-            val closestReminderText = "${closestReminder.medicineName} a las ${formatTime(closestReminder.reminderTime)}"
+            val closestReminderText = "${closestReminder.medicineName}\n ${formatTime(closestReminder.reminderTime)}"
             closestReminderTextView.text = closestReminderText
 
             val closestDatabaseReference: DatabaseReference = FirebaseDatabase.getInstance().reference.child("closestReminders")
@@ -106,7 +109,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun formatTime(timeInMillis: Long): String {
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        val sdf = SimpleDateFormat("EEE, d 'de' MMM, h:mm a", Locale.getDefault())
         return sdf.format(timeInMillis)
     }
 
@@ -147,16 +150,33 @@ class MainActivity : AppCompatActivity() {
                 Log.d(TAG, "Current pills count: $currentPillsCount") // Añadido para depuración
 
                 if (currentPillsCount != null) {
-                    val  newPillsCount = currentPillsCount - 1
-                    Log.d(TAG, "New pills count: $newPillsCount") // Log para depuración
 
-                    reminderReference.child("pills").setValue(newPillsCount)
-                        .addOnSuccessListener {
-                            Log.d(TAG, "Cantidad de píldoras actualizada correctamente.")
-                        }
-                        .addOnFailureListener { e ->
-                            Log.w(TAG, "Error al actualizar la cantidad de píldoras", e)
-                        }
+                    // Verificar si quedan pocos medicamentos
+                    if (currentPillsCount < 3 && currentPillsCount > 1) {
+                        sendLowPillsNotification()
+                    }
+
+                    // Si quedan medicametnos, actualizar el conteo
+                    if (currentPillsCount > 0) {
+                        val  newPillsCount = currentPillsCount - 1
+                        Log.d(TAG, "New pills count: $newPillsCount") // Log para depuración
+
+                        reminderReference.child("pills").setValue(newPillsCount)
+                            .addOnSuccessListener {
+                                Log.d(TAG, "Cantidad de medicamentos actualizada correctamente.")
+
+                                // Verificar si se agotaron los medicamentos
+                                if (newPillsCount == 0) {
+                                    sendOutOfPillsNotification()
+                                }
+                            }
+                            .addOnFailureListener { e ->
+                                Log.w(TAG, "Error al actualizar la cantidad de medicamentos", e)
+                            }
+                    } else {
+                        Log.w(TAG, "No quedan medicamentos disponibles para actualizar.")
+                    }
+
                 } else {
                     Log.w(TAG, "currentPillsCount is null")
                 }
@@ -170,14 +190,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showMedicationConfirmedNotification() {
-        Toast.makeText(this, "La toma del medicamento fue confirmada", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "¡El usuario confirmo la toma del medicamento!", Toast.LENGTH_SHORT).show()
     }
 
     private fun showMedicationEmergencyNotification() {
-        Toast.makeText(this, "Se presionó el botón de emergencia", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "¡El usuario presionó el botón de emergencia!", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun sendLowPillsNotification() {
+        Toast.makeText(this, "Quedan POCOS medicamentos disponibles para este recordatorio", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun sendOutOfPillsNotification() {
+        Toast.makeText(this, "NO quedan medicamentos disponibles para este recordatorio", Toast.LENGTH_SHORT).show()
     }
 
     companion object {
         private const val TAG = "MainActivity"
     }
+
 }

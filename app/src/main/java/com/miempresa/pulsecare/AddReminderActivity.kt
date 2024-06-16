@@ -9,6 +9,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import java.util.Calendar
 
 class AddReminderActivity : AppCompatActivity() {
@@ -142,7 +143,7 @@ class AddReminderActivity : AppCompatActivity() {
 
         }
 
-
+        window.statusBarColor = ContextCompat.getColor(this, R.color.colorStatusBar)
     }
 
     private fun showDateTimePickerDialog() {
@@ -150,6 +151,7 @@ class AddReminderActivity : AppCompatActivity() {
 
         val datePickerDialog = DatePickerDialog(
             this,
+            R.style.MyTimePickerDialogTheme, // Aplicar el estilo personalizado
             { _, year, month, dayOfMonth ->
                 // Establecer la fecha seleccionada en el calendario
                 calendar.set(Calendar.YEAR, year)
@@ -172,6 +174,7 @@ class AddReminderActivity : AppCompatActivity() {
 
         val timePickerDialog = TimePickerDialog(
             this,
+            R.style.MyTimePickerDialogTheme,
             { _, hourOfDay, minute ->
                 // Establecer la hora seleccionada en el calendario
                 calendar.set(Calendar.HOUR_OF_DAY, hourOfDay)
