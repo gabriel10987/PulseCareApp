@@ -1,10 +1,13 @@
 package com.miempresa.pulsecare
 
 import com.google.firebase.database.*
+import java.util.Calendar
 
 class ReminderRepository {
 
     private val databaseReference: DatabaseReference = FirebaseDatabase.getInstance().reference.child("reminders")
+    private val pendingRemindersReference: DatabaseReference = FirebaseDatabase.getInstance().reference.child("pendingReminders")
+    private val emergencyStateReference: DatabaseReference = FirebaseDatabase.getInstance().reference.child("emergencyState")
 
     fun fetchAllReminders(callback: (List<Reminder>) -> Unit) {
         databaseReference.addValueEventListener(object : ValueEventListener {
@@ -21,20 +24,6 @@ class ReminderRepository {
 
             override fun onCancelled(databaseError: DatabaseError) {
                 // Manejar errores de Firebase
-            }
-        })
-    }
-
-    fun fetchReminderById(id: String, callback: (Reminder?) -> Unit) {
-        databaseReference.child(id).addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val reminder = snapshot.getValue(Reminder::class.java)
-                reminder?.id = snapshot.key
-                callback(reminder)
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                callback(null)
             }
         })
     }
@@ -74,27 +63,17 @@ class ReminderRepository {
         }
     }
 
-    fun updateReminderState(reminderId: String, state: String, callback: (Boolean) -> Unit) {
-        val reminderStateRef = FirebaseDatabase.getInstance().reference.child("closestReminders").child("state")
-        reminderStateRef.setValue(state).addOnCompleteListener { task ->
-            callback(task.isSuccessful)
+    fun moveReminderToPending(reminder: Reminder) {
+        reminder.id?.let {
+            val pendingReminderRef = pendingRemindersReference.child(it)
+            pendingReminderRef.setValue(reminder)
+            // Eliminar el recordatorio de la lista de recordatorios
+            databaseReference.child(it).removeValue()
         }
     }
 
-    fun decreasePills(reminderId: String, callback: (Boolean) -> Unit) {
-        val reminderRef = databaseReference.child(reminderId)
-        reminderRef.runTransaction(object : Transaction.Handler {
-            override fun doTransaction(mutableData: MutableData): Transaction.Result {
-                val reminder = mutableData.getValue(Reminder::class.java) ?: return Transaction.success(mutableData)
-                reminder.pills -= 1
-                mutableData.value = reminder
-                return Transaction.success(mutableData)
-            }
-
-            override fun onComplete(databaseError: DatabaseError?, committed: Boolean, dataSnapshot: DataSnapshot?) {
-                callback(committed)
-            }
-        })
+    fun deleteExpiredPendingReminder (reminderId: String) {
+        pendingRemindersReference.child(reminderId).removeValue()
     }
 
 }

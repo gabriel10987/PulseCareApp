@@ -1,7 +1,6 @@
 package com.miempresa.pulsecare
 
 import androidx.appcompat.app.AppCompatActivity
-import com.google.firebase.database.*
 
 class ReminderController(private val activity: AppCompatActivity) {
 
@@ -9,10 +8,6 @@ class ReminderController(private val activity: AppCompatActivity) {
 
     fun fetchAllReminders(callback: (List<Reminder>) -> Unit) {
         repository.fetchAllReminders(callback)
-    }
-
-    fun fetchReminderById(id: String, callback: (Reminder?) -> Unit) {
-        repository.fetchReminderById(id, callback)
     }
 
     fun addReminder(reminder: Reminder, callback: (Boolean) -> Unit) {
@@ -27,8 +22,12 @@ class ReminderController(private val activity: AppCompatActivity) {
         repository.deleteReminder(reminder, callback)
     }
 
-    fun updateReminderTime(reminder: Reminder, newTime: Long, callback: (Boolean) -> Unit) {
-        repository.updateReminderTime(reminder, newTime, callback)
+    fun moveReminderToPending(reminder: Reminder) {
+        repository.moveReminderToPending(reminder)
+    }
+
+    fun deleteExpiredPendingReminder(reminderId: String) {
+        repository.deleteExpiredPendingReminder(reminderId)
     }
 
 }

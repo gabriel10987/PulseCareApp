@@ -36,6 +36,8 @@ class UpdateRemindersWorker(context: Context, params: WorkerParameters): Worker(
     private fun calculateNextReminderTime(reminder: Reminder, currentTime: Long): Long? {
         val calendar = Calendar.getInstance().apply { timeInMillis = reminder.reminderTime }
         val today = calendar.get(Calendar.DAY_OF_WEEK)
+
+        // Iterar para encontrar el próximo día de recordatorio válido dentro de los próximos 7 días
         for (i in 1..7) {
             val nextDay = (today + i) % 7
             if (reminder.repeatDays.contains(nextDay)) {
@@ -43,6 +45,7 @@ class UpdateRemindersWorker(context: Context, params: WorkerParameters): Worker(
                 return calendar.timeInMillis
             }
         }
+        // Si no se encuentra un próximo día de recordatorio válido, retornar null
         return null
     }
 }
