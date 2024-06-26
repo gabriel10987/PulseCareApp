@@ -2,6 +2,7 @@ package com.miempresa.pulsecare
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.ClipDescription
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
@@ -11,6 +12,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import java.util.Calendar
+import kotlin.coroutines.cancellation.CancellationException
 
 class AddReminderActivity : AppCompatActivity() {
 
@@ -139,12 +141,15 @@ class AddReminderActivity : AppCompatActivity() {
                         }
                     }
                 }
+            } else {
+                Toast.makeText(this, "Ingrese un nombre para el medicamento", Toast.LENGTH_SHORT).show()
             }
 
         }
 
         window.statusBarColor = ContextCompat.getColor(this, R.color.colorStatusBar)
     }
+
 
     private fun showDateTimePickerDialog() {
         val currentDate = Calendar.getInstance()

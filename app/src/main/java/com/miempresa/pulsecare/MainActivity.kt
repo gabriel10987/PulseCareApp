@@ -1,7 +1,11 @@
 package com.miempresa.pulsecare
 
+import android.content.ContentValues.TAG
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.ImageButton
 import android.widget.TextView
@@ -10,8 +14,12 @@ import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.Worker
+import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
@@ -45,7 +53,8 @@ class MainActivity : AppCompatActivity() {
 
         // Inicializar controlador
         reminderController = ReminderController(this)
-        reminderController.fetchAllReminders  { remindersList -> remindersAdapter.setData(remindersList)
+        reminderController.fetchAllReminders  { remindersList ->
+            remindersAdapter.setData(remindersList)
             updateClosestReminder(remindersList)
         }
 
@@ -63,6 +72,59 @@ class MainActivity : AppCompatActivity() {
         listenForStateChanges()
 
         window.statusBarColor = ContextCompat.getColor(this, R.color.colorStatusBar)
+
+        // Logica de Emergencia
+        val emergencyStatusReference: DatabaseReference = FirebaseDatabase.getInstance().reference.child("emergencyStatus")
+        emergencyStatusReference.setValue(EmergencyState(false))
+            .addOnSuccessListener {
+                Log.d(TAG, "Estado de emergencia inicializado en falso.")
+            }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "Error al inicializar el estado de emergencia.", e)
+            }
+
+        // Añadir un ValueEventListener para escuchar cambios en el estado de emergencia
+        emergencyStatusReference.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val emergencyStatus = snapshot.getValue(EmergencyState::class.java)
+                if (emergencyStatus?.isEmergency == true) {
+                    showEmergencyNotification("¡El usuario presionó el botón de emergencia!")
+                    resetEmergencyStatusAfterDelay()
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.w(TAG, "Error al escuchar cambios en el estado de emergencia.", error.toException())
+            }
+        })
+    }
+
+    private fun setEmergencyStatus(isEmergency: Boolean) {
+        val emergencyStatusReference: DatabaseReference = FirebaseDatabase.getInstance().reference.child("emergencyStatus")
+        emergencyStatusReference.setValue(EmergencyState(isEmergency))
+            .addOnSuccessListener {
+                Log.d(TAG, "Estado de emergencia actualizado a $isEmergency.")
+                if (isEmergency) {
+                    showEmergencyNotification("¡Emergencia activada!")
+                    resetEmergencyStatusAfterDelay()
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "Error al actualizar el estado de emergencia.", e)
+            }
+    }
+
+    private fun showEmergencyNotification(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun resetEmergencyStatusAfterDelay() {
+        val handler = Handler(Looper.getMainLooper())
+        val delayMillis: Long = 1 * 60 * 1000 // 1 minuto
+
+        handler.postDelayed({
+            setEmergencyStatus(false)
+        }, delayMillis)
     }
 
 
@@ -94,10 +156,11 @@ class MainActivity : AppCompatActivity() {
                 "state" to "pending"
             )
 
-            // Almacenar el recordatorio más cercano en la referencia "closestReminders/currentClosest"
+            // Almacenar el recordatorio más cercano en la referencia "closestReminders"
             closestDatabaseReference.setValue(closestReminderData)
                 .addOnSuccessListener {
                     Log.d(TAG, "Recordatorio más cercano guardado exitosamente.")
+                    scheduleMoveToPendingReminder(closestReminder)
                 }
                 .addOnFailureListener { e ->
                     Log.w(TAG, "Error al guardar el recordatorio más cercano", e)
@@ -105,6 +168,25 @@ class MainActivity : AppCompatActivity() {
 
         } else {
             closestReminderTextView.text = "No hay recordatorios"
+        }
+
+    }
+
+    private fun scheduleMoveToPendingReminder(reminder: Reminder) {
+        val currentTimeMillis = System.currentTimeMillis()
+        val timeDifference = reminder.reminderTime - currentTimeMillis
+
+        if (timeDifference > 0) {
+            val moveReminderRequest = OneTimeWorkRequestBuilder<MoveToPendingWorker>()
+                .setInitialDelay(timeDifference, TimeUnit.MILLISECONDS)
+                .setInputData(workDataOf(
+                    "reminderId" to reminder.id,
+                    "medicineName" to reminder.medicineName,
+                    "reminderTime" to reminder.reminderTime
+                ))
+                .build()
+
+            WorkManager.getInstance(this).enqueue(moveReminderRequest)
         }
     }
 
@@ -114,23 +196,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun listenForStateChanges() {
-        val closestDatabaseReference: DatabaseReference = FirebaseDatabase.getInstance().reference.child("closestReminders")
+        val pendingDatabaseReference: DatabaseReference = FirebaseDatabase.getInstance().reference.child("pendingReminders")
 
-        closestDatabaseReference.addValueEventListener(object : ValueEventListener {
+        pendingDatabaseReference.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val state = snapshot.child("state").getValue(String::class.java)
-                val reminderId = snapshot.child("id").getValue(String::class.java)
-                Log.d(TAG, "State: $state, Reminder ID: $reminderId") // Añadido para depuración
+                for (childSnapshot in snapshot.children) {
+                    val state = childSnapshot.child("state").getValue(String::class.java)
+                    val reminderId = childSnapshot.child("id").getValue(String::class.java)
+                    Log.d(TAG, "State: $state, Reminder ID: $reminderId") // Añadido para depuración
 
-                if (state == "confirmed") {
-                    showMedicationConfirmedNotification()
-                    if (reminderId != null) {
-                        updatePillsCount(reminderId)
-                    } else {
-                        Log.w(TAG, "Reminder ID is null")
+                    if (state == "confirmed") {
+                        showMedicationConfirmedNotification()
+                        if (reminderId != null) {
+                            updatePillsCount(reminderId)
+                            // Eliminar el recordatorio inmediatamente cuando se confirma
+                            val specificPendingReminderReference = pendingDatabaseReference.child(reminderId)
+
+                            specificPendingReminderReference.removeValue()
+                                .addOnSuccessListener {
+                                    Log.d(TAG, "Recordatorio eliminado de 'pendingReminders' inmediatamente después de la confirmación.")
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.w(TAG, "Error al eliminar el recordatorio de 'pendingReminders' inmediatamente después de la confirmación.", e)
+                                }
+                        } else {
+                            Log.w(TAG, "Reminder ID is null")
+                        }
+                    } else if (state == "emergency") {
+                        showMedicationEmergencyNotification()
                     }
-                } else if (state == "emergency") {
-                    showMedicationEmergencyNotification()
                 }
             }
 
@@ -209,4 +303,90 @@ class MainActivity : AppCompatActivity() {
         private const val TAG = "MainActivity"
     }
 
+}
+
+class MoveToPendingWorker(appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
+    override fun doWork(): Result {
+        val reminderId = inputData.getString("reminderId")
+        val medicineName = inputData.getString("medicineName")
+        val reminderTime = inputData.getLong("reminderTime", -1)
+
+        if (reminderId != null && medicineName != null && reminderTime != -1L) {
+            val pendingDatabaseReference = FirebaseDatabase.getInstance().reference
+                .child("pendingReminders")
+                .child(reminderId)
+
+            val pendingReminderData = hashMapOf(
+                "id" to reminderId,
+                "medicineName" to medicineName,
+                "reminderTime" to reminderTime,
+                "state" to "pending"
+            )
+
+            pendingDatabaseReference.setValue(pendingReminderData)
+                .addOnSuccessListener {
+                    Log.d(TAG, "Recordatorio movido a 'pendingReminders' exitosamente.")
+                    // Programar eliminación después de 10 minutos
+                    scheduleDeletion(reminderId, 10 * 60 * 1000) // 10 minutos en milisegundos
+                }
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "Error al mover el recordatorio a 'pendingReminders'.", e)
+                }
+
+        } else {
+            Log.w(TAG, "Error al obtener los datos del recordatorio.")
+            return Result.failure()
+        }
+
+        return Result.success()
+    }
+
+    private fun scheduleDeletion(reminderId: String, delay: Long) {
+        val deleteReminderRequest = OneTimeWorkRequestBuilder<DeletePendingReminderWorker>()
+            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+            .setInputData(workDataOf("reminderId" to reminderId))
+            .build()
+
+        WorkManager.getInstance(applicationContext).enqueue(deleteReminderRequest)
+    }
+}
+
+class DeletePendingReminderWorker(appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
+    override fun doWork(): Result {
+        val reminderId = inputData.getString("reminderId")
+
+        if (reminderId != null) {
+            val pendingDatabaseReference = FirebaseDatabase.getInstance().reference
+                .child("pendingReminders")
+                .child(reminderId)
+
+            pendingDatabaseReference.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val state = snapshot.child("state").getValue(String::class.java)
+                    // Eliminar el recordatorio sin importar el estado
+                    pendingDatabaseReference.removeValue()
+                        .addOnSuccessListener {
+                            if (state == "confirmed") {
+                                Toast.makeText(applicationContext, "El recordatorio ha sido confirmado y eliminado.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(applicationContext, "El recordatorio no ha sido confirmado pero ha sido eliminado.", Toast.LENGTH_SHORT).show()
+                            }
+                            Log.d(TAG, "Recordatorio eliminado de 'pendingReminders'.")
+                        }
+                        .addOnFailureListener { e ->
+                            Log.w(TAG, "Error al eliminar el recordatorio de 'pendingReminders'.", e)
+                        }
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.w(TAG, "Error al leer el estado del recordatorio.", error.toException())
+                }
+            })
+        } else {
+            Log.w(TAG, "Error al obtener el ID del recordatorio.")
+            return Result.failure()
+        }
+
+        return Result.success()
+    }
 }
